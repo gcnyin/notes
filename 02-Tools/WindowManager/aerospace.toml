@@ -1,0 +1,252 @@
+# =============================================================================
+# AeroSpace 配置文件 (~/.aerospace.toml)
+# =============================================================================
+# 将此文件保存到 ~/.aerospace.toml
+# 修改后，AeroSpace 通常会自动重载配置。如果没有生效，可运行: aerospace reload-config
+# 官方文档: https://nikitabobko.github.io/AeroSpace/guide
+
+# -----------------------------------------------------------------------------
+# 1. 基础设置 (General Settings)
+# -----------------------------------------------------------------------------
+
+# 配置版本：用于兼容性和废弃功能处理
+# 如果省略此键，默认值为 1。当前推荐设置为 2 以启用新特性（如 persistent-workspaces）。
+config-version = 2
+
+# 启动后执行的命令列表
+# 可以在此处运行脚本或命令，例如隐藏菜单栏图标、启动特定应用等。
+# 可用命令列表: https://nikitabobko.github.io/AeroSpace/commands
+after-startup-command = []
+
+# 是否在登录时自动启动 AeroSpace
+# true = 开机自启, false = 需手动启动
+start-at-login = true
+
+# -----------------------------------------------------------------------------
+# 2. 窗口布局规范化 (Normalizations)
+# -----------------------------------------------------------------------------
+# 这些选项用于优化布局树的结构，避免产生冗余的容器节点，使布局更智能。
+
+# 启用“扁平化容器”：如果一个容器只有一个子节点，自动将其移除，提升效率。
+enable-normalization-flatten-containers = true
+
+# 启用“嵌套容器方向反转”：在嵌套布局中自动调整方向，防止布局逻辑冲突。
+enable-normalization-opposite-orientation-for-nested-containers = true
+
+# -----------------------------------------------------------------------------
+# 3. 手风琴布局与默认行为 (Layouts & Defaults)
+# -----------------------------------------------------------------------------
+
+# 手风琴模式 (Accordion) 下的内边距大小 (像素)
+# 如果设置为 0，则禁用内边距功能。
+accordion-padding = 0
+
+# 根容器的默认布局模式
+# 可选值: 'tiles' (平铺，类似 i3), 'accordion' (手风琴，类似 macOS 原生堆叠)
+default-root-container-layout = 'tiles'
+
+# 根容器的默认分割方向
+# 可选值: 
+#   'horizontal' (水平分割，左右排列)
+#   'vertical' (垂直分割，上下排列)
+#   'auto' (自动：宽屏幕用水平，高屏幕用垂直)
+default-root-container-orientation = 'auto'
+
+# -----------------------------------------------------------------------------
+# 4. 鼠标与焦点行为 (Mouse & Focus)
+# -----------------------------------------------------------------------------
+
+# 当焦点切换到另一个显示器时，鼠标指针的行为
+# 'move-mouse monitor-lazy-center' 表示：只有当鼠标不在目标显示器时，才将其移动到该显示器中心。
+# 如果你不喜欢鼠标自动跳转，可以删除或注释掉这一行。
+on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
+
+# 自动取消 macOS 的“隐藏应用” (Cmd-H) 状态
+# 如果你不小心按了 Cmd-H 导致窗口消失，设为 true 可以让 AeroSpace 自动把它们找回来。
+automatically-unhide-macos-hidden-apps = true
+
+# -----------------------------------------------------------------------------
+# 5. 持久化工作区 (Persistent Workspaces)
+# -----------------------------------------------------------------------------
+# 即使工作区内没有窗口，也强制保留这些工作区（它们会一直显示在状态栏/切换列表中）。
+# 此功能仅在 config-version = 2 时可用。
+# 这里定义了数字 1-9 和字母 A-Z (跳过了一些易混淆的字母如 H, J, K, L 等，具体看你需求)
+persistent-workspaces = [
+    "1", "2", "3", "4", "5", "6", "7", "8", "9"
+    # , "A", "B", "C", "D", "E", "F", "G", "I", "M", "N", "O", "P", "Q",
+    # "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
+]
+
+# 当绑定模式 (Binding Mode) 切换时执行的回调命令
+# 通常用于在屏幕上显示当前模式提示，这里留空。
+on-mode-changed = []
+
+# -----------------------------------------------------------------------------
+# 6. 键盘映射 (Key Mapping)
+# -----------------------------------------------------------------------------
+# 指定键盘布局预设，确保快捷键在不同键盘布局下表现一致。
+# 可选值: qwerty, dvorak, colemak
+[key-mapping]
+    preset = 'qwerty'
+
+# -----------------------------------------------------------------------------
+# 7. 窗口间隙 (Gaps)
+# -----------------------------------------------------------------------------
+# 定义窗口之间 (inner) 和窗口与屏幕边缘之间 (outer) 的间距 (像素)。
+# 支持固定值，也支持针对不同显示器设置不同值。
+[gaps]
+    inner.horizontal = 0   # 窗口之间的水平间距
+    inner.vertical =   0   # 窗口之间的垂直间距
+    outer.left =       0   # 屏幕左边缘间距
+    outer.bottom =     0   # 屏幕下边缘间距 (注意 macOS 底部通常是 Dock)
+    outer.top =        0   # 屏幕上边缘间距 (注意 macOS 顶部是菜单栏)
+    outer.right =      0   # 屏幕右边缘间距
+
+# -----------------------------------------------------------------------------
+# 8. 主绑定模式 (Main Binding Mode)
+# -----------------------------------------------------------------------------
+# 这是默认的操作模式。绝大多数快捷键都在此定义。
+# 修饰键: cmd, alt, ctrl, shift
+# 特殊键名参考官方文档，如: minus, equal, leftSquareBracket 等。
+[mode.main.binding]
+
+    # --- 布局切换 ---
+    # Alt + / : 在水平平铺和垂直平铺之间切换
+    alt-slash = 'layout tiles horizontal vertical'
+    # Alt + , : 在手风琴模式的水平和垂直之间切换
+    alt-comma = 'layout accordion horizontal vertical'
+
+    # --- 焦点移动 (Focus) ---
+    # 使用 Vim 风格 (HJKL) 或方向键移动焦点
+    alt-h = 'focus left'
+    alt-j = 'focus down'
+    alt-k = 'focus up'
+    alt-l = 'focus right'
+
+    # --- 移动窗口 (Move) ---
+    # Alt + Shift + 方向/HJKL : 将当前窗口向对应方向移动（交换位置）
+    alt-shift-h = 'move left'
+    alt-shift-j = 'move down'
+    alt-shift-k = 'move up'
+    alt-shift-l = 'move right'
+
+    # --- 调整大小 (Resize) ---
+    # Alt + - : 智能缩小窗口 (根据当前布局方向自动决定是缩宽还是缩高)
+    alt-minus = 'resize smart -50'
+    # Alt + = : 智能放大窗口
+    alt-equal = 'resize smart +50'
+
+    # --- 调整最大化 ---
+    alt-f = 'fullscreen'
+
+    # --- 工作区切换 (Workspace Navigation) ---
+    # Alt + 数字/字母 : 切换到对应的工作区
+    alt-1 = 'workspace 1'
+    alt-2 = 'workspace 2'
+    alt-3 = 'workspace 3'
+    alt-4 = 'workspace 4'
+    alt-5 = 'workspace 5'
+    alt-6 = 'workspace 6'
+    alt-7 = 'workspace 7'
+    alt-8 = 'workspace 8'
+    alt-9 = 'workspace 9'
+    
+    # 字母工作区 (可根据需要删除不用的)
+    # alt-a = 'workspace A'
+    # alt-b = 'workspace B'
+    # alt-c = 'workspace C'
+    # alt-d = 'workspace D'
+    # alt-e = 'workspace E'
+    # alt-f = 'workspace F'
+    # alt-g = 'workspace G'
+    # alt-i = 'workspace I'
+    # alt-m = 'workspace M'
+    # alt-n = 'workspace N'
+    # alt-o = 'workspace O'
+    # alt-p = 'workspace P'
+    # alt-q = 'workspace Q'
+    # alt-r = 'workspace R'
+    # alt-s = 'workspace S'
+    # alt-t = 'workspace T'
+    # alt-u = 'workspace U'
+    # alt-v = 'workspace V'
+    # alt-w = 'workspace W'
+    # alt-x = 'workspace X'
+    # alt-y = 'workspace Y'
+    # alt-z = 'workspace Z'
+
+    # --- 移动窗口到工作区 (Move Node to Workspace) ---
+    # Alt + Shift + 数字/字母 : 将当前聚焦的窗口移动到指定工作区，并跟随过去
+    alt-shift-1 = 'move-node-to-workspace 1'
+    alt-shift-2 = 'move-node-to-workspace 2'
+    alt-shift-3 = 'move-node-to-workspace 3'
+    alt-shift-4 = 'move-node-to-workspace 4'
+    alt-shift-5 = 'move-node-to-workspace 5'
+    alt-shift-6 = 'move-node-to-workspace 6'
+    alt-shift-7 = 'move-node-to-workspace 7'
+    alt-shift-8 = 'move-node-to-workspace 8'
+    alt-shift-9 = 'move-node-to-workspace 9'
+    
+    # alt-shift-a = 'move-node-to-workspace A'
+    # alt-shift-b = 'move-node-to-workspace B'
+    # alt-shift-c = 'move-node-to-workspace C'
+    # alt-shift-d = 'move-node-to-workspace D'
+    # alt-shift-e = 'move-node-to-workspace E'
+    # alt-shift-f = 'move-node-to-workspace F'
+    # alt-shift-g = 'move-node-to-workspace G'
+    # alt-shift-i = 'move-node-to-workspace I'
+    # alt-shift-m = 'move-node-to-workspace M'
+    # alt-shift-n = 'move-node-to-workspace N'
+    # alt-shift-o = 'move-node-to-workspace O'
+    # alt-shift-p = 'move-node-to-workspace P'
+    # alt-shift-q = 'move-node-to-workspace Q'
+    # alt-shift-r = 'move-node-to-workspace R'
+    # alt-shift-s = 'move-node-to-workspace S'
+    # alt-shift-t = 'move-node-to-workspace T'
+    # alt-shift-u = 'move-node-to-workspace U'
+    # alt-shift-v = 'move-node-to-workspace V'
+    # alt-shift-w = 'move-node-to-workspace W'
+    # alt-shift-x = 'move-node-to-workspace X'
+    # alt-shift-y = 'move-node-to-workspace Y'
+    # alt-shift-z = 'move-node-to-workspace Z'
+
+    # --- 其他导航 ---
+    # Alt + Tab : 在最后一个活跃的工作区和当前工作区之间快速切换 (类似 Alt-Tab 效果)
+    alt-tab = 'workspace-back-and-forth'
+    
+    # Alt + Shift + Tab : 将当前工作区移动到下一个显示器 (循环)
+    alt-shift-tab = 'move-workspace-to-monitor --wrap-around next'
+
+    # --- 进入服务模式 ---
+    # Alt + Shift + ; : 切换到 'service' 模式 (执行特殊管理命令)
+    alt-shift-semicolon = 'mode service'
+
+# -----------------------------------------------------------------------------
+# 9. 服务绑定模式 (Service Binding Mode)
+# -----------------------------------------------------------------------------
+# 这是一个辅助模式，通常用于执行不常用的管理操作。
+# 通过主模式下的 'alt-shift-semicolon' 进入。
+# 按 'esc' 可退出此模式并重新加载配置。
+[mode.service.binding]
+    # Esc : 重新加载配置文件 并 返回主模式
+    esc = ['reload-config', 'mode main']
+    
+    # r : 重置当前工作区的布局树 (扁平化所有嵌套) 并 返回主模式
+    r = ['flatten-workspace-tree', 'mode main']
+    
+    # f : 切换当前窗口的 浮动/平铺 状态 并 返回主模式
+    f = ['layout floating tiling', 'mode main']
+    
+    # Backspace : 关闭当前工作区除当前窗口外的所有其他窗口 并 返回主模式
+    # (慎用！这会关掉很多窗口)
+    backspace = ['close-all-windows-but-current', 'mode main']
+
+    # --- 合并窗口 (Join With) ---
+    # 将当前窗口嵌入到相邻窗口的容器中，形成新的分割关系
+    alt-shift-h = ['join-with left', 'mode main']
+    alt-shift-j = ['join-with down', 'mode main']
+    alt-shift-k = ['join-with up', 'mode main']
+    alt-shift-l = ['join-with right', 'mode main']
+
+    # 注意：Sticky (粘性) 布局目前尚未支持 (见 GitHub issue #2)
+    # s = ['layout sticky tiling', 'mode main']
