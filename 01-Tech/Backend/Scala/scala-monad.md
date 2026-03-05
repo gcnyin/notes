@@ -1,3 +1,8 @@
+---
+created: 2026-03-05
+updated: 2026-03-05
+---
+
 # Monoid
 
 ```scala
@@ -19,9 +24,9 @@ def identityLaw[A](x: A)
 }
 ```
 
-结合律(associativity)：对任何在 M 内的a、b、c ， (a*b)c = a(b*c) 。
+结合律 (associativity)：对任何在 M 内的 a、b、c ， (a*b)c = a(b*c) 。
 
-单位元(identity)：存在一在 M 内的元素e，使得任一于 M 内的 a 都会符合 a*e = e*a = a 。
+单位元 (identity)：存在一在 M 内的元素 e，使得任一于 M 内的 a 都会符合 a*e = e*a = a 。
 
 # Semigroup
 
@@ -35,13 +40,13 @@ trait Monoid[A] extends Semigroup[A] {
 }
 ```
 
-Semigroup就是没有单位元。
+Semigroup 就是没有单位元。
 
 # Functors
 
 函子。
 
-Informally, a functor is anything with a map method。有`map`方法就好，比如`List`, `Option`, `Future`。
+Informally, a functor is anything with a map method。有 `map` 方法就好，比如 `List`, `Option`, `Future`。
 
 ```scala
 trait Functor[F[_]] {

@@ -1,3 +1,8 @@
+---
+created: 2026-03-05
+updated: 2026-03-05
+---
+
 # TUI 程序应用
 
 ## Zellij
@@ -6,11 +11,11 @@
 
 ## Yazi
 
-还ok，但对windows有些弱。
+还 ok，但对 windows 有些弱。
 
 ## nnn
 
-不支持windows。
+不支持 windows。
 
 ## Bottom
 

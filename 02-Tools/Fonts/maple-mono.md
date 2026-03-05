@@ -1,3 +1,8 @@
+---
+created: 2026-03-05
+updated: 2026-03-05
+---
+
 # Maple Mono 字体
 
 https://font.subf.dev/zh-cn/
@@ -10,4 +15,4 @@ https://github.com/subframe7536/Maple-font
 
 选择 NF-CN + Ligature 那款，支持 Nerd-Font，可以用在命令行，尤其是搭配 p10k 这种 zsh 主题。
 
-可能唯一的问题是字母L的斜体是手写体的感觉，但也可以通过配置修改。
+可能唯一问题是字母 L 的斜体是手写体的感觉，但也可以通过配置修改。

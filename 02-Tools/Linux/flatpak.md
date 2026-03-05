@@ -1,6 +1,11 @@
+---
+created: 2026-03-02
+updated: 2026-03-05
+---
+
 # Flatpak
 
-最近(2026-03-02)在折腾给老机器装Lubuntu，然后想到用 flatpak 添加一些常用的软件。
+最近 (2026-03-02) 在折腾给老机器装 Lubuntu，然后想到用 flatpak 添加一些常用的软件。
 
 官网 https://flatpak.org/
 
@@ -9,14 +14,16 @@
 ## 安装
 
 ```shell
-// arch: sudo pacman -S flatpak
-// debian: sudo apt install flatpak
+# arch:
+pacman -S flatpak
+# debian:
+apt install flatpak
 ```
 
 ## 添加软件仓库
 
 ```shell
-sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 ```
 
 ## 镜像推荐

@@ -10,23 +10,17 @@ updated: 2025-03-10
 
 在大多数 Linux 发行版上，你可以通过包管理器安装 `jq`：
 
-- **Debian/Ubuntu**:
+Debian/Ubuntu:
 
-  ```bash
-  sudo apt-get install jq
-  ```
+```bash
+sudo apt-get install jq
+```
 
-- **CentOS/RHEL**:
+macOS (使用 Homebrew):
 
-  ```bash
-  sudo yum install jq
-  ```
-
-- **macOS** (使用 Homebrew):
-
-  ```bash
-  brew install jq
-  ```
+```bash
+brew install jq
+```
 
 ## 2. 基本用法
 
@@ -326,4 +320,3 @@ jq 'sort_by(.age, .name)' input.json
 - 对对象键排序：`to_entries | sort_by(.key) | from_entries`
 - 自定义排序规则：结合 `sort_by` 和表达式
 
-根据你的具体需求选择合适的方法即可！

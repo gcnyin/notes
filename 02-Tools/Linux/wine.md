@@ -1,8 +1,11 @@
+---
+created: 2026-03-05
+updated: 2026-03-05
+---
+
 # Wine
 
-先下载好代理，参考 clash-verge-rev.md 。
-
-我使用 Lubuntu(Ubuntu+LXQT) ，想要通过 Wine 运行 QQ 游戏大厅。
+使用 Lubuntu(Ubuntu+LXQT) ，想要通过 Wine 运行 QQ 游戏大厅，应该要安装 32 位的 wine prefix。
 
 ```shell
 sudo apt update

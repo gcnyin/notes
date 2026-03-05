@@ -4,6 +4,31 @@ updated: 2026-01-16
 ---
 # unix-like装机脚本
 
+## oh-my-zsh
+
+```shell
+# 安装
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+# 下载powerlevel10k
+git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/themes/powerlevel10k
+git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
+git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
+```
+
+编辑 `~/.zshrc`
+
+```shell
+ZSH_THEME="powerlevel10k/powerlevel10k"
+
+plugins=(... zsh-autosuggestions zsh-syntax-highlighting z)
+```
+
+重启zsh
+
+```shell
+source ~/.zshrc
+```
+
 ## 主要依赖
 
 依赖列表
@@ -55,9 +80,6 @@ echo 'eval "$(jenv init -)"' >> ~/.zshrc
 ## diff-so-fancy
 
 ```shell
-# install via apt
-sudo add-apt-repository ppa:aos1/diff-so-fancy
-sudo apt install diff-so-fancy
 # install via npm
 npm i -g diff-so-fancy
 

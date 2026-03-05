@@ -6,7 +6,7 @@ updated: 2025-01-17
 
 https://askubuntu.com/questions/812420/chsh-always-asking-a-password-and-get-pam-authentication-failure
 
-Changing `/etc/pam.d/chsh` from:
+Changing `/etc/pam.d/chsh` from:
 
 ```
 auth       required   pam_shells.so
