@@ -10,6 +10,8 @@
 - 7zip. `winget install 7zip.7zip`
 - 1Password. `winget install AgileBits.1Password`
 - Firefox. `winget install Mozilla.Firefox.zh-CN`
+- WizTree. `winget install AntibodySoftware.WizTree`
+- Dism++. `winget install ChuyuTeam.DISM++`
 
 ## 游戏
 
