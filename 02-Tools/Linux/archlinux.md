@@ -9,10 +9,11 @@
 - 升级所有软件：`pacman -Syu`
 - 国内镜像：`pacman-mirrors -i -c China -m rank`
 
-## 镜像
+## 安装
 
-/etc/pacman.d/mirrorlist
+使用 reflector 更新 mirror 地址
 
 ```
-Server = https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm/$arch/$repo
+pacman -Sy reflector
+reflector --country China --protocol https --age 12 --sort rate --save /etc/pacman.d/mirrorlist
 ```
