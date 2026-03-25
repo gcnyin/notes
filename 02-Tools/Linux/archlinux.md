@@ -7,7 +7,6 @@
 - 卸载软件（包括配置文件和依赖）：`pacman -Rsc pkg`
 - 搜索软件：`pacman -Ss keywords`
 - 升级所有软件：`pacman -Syu`
-- 国内镜像：`pacman-mirrors -i -c China -m rank`
 
 ## 安装
 
