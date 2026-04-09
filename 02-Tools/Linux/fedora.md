@@ -5,7 +5,14 @@ updated: 2026-03-15
 
 # Fedora
 
-> Created: 2026-03-15
+## 使用最快的镜像源
+
+编辑 `/etc/dnf/dnf.conf`
+
+```
+[main]
+fastestmirror=true
+```
 
 ## 安装字体
 
