@@ -1,35 +1,17 @@
 ---
-created: 2025-01-17
+created: 2026-07-23
 updated: 2026-07-23
 ---
-# Arch / Manjaro 装机脚本
-
-## Pacman 常用命令
-
-- 安装软件（同时更新软件包列表）：`pacman -Syu pkg`
-- 仅安装软件（不更新软件包列表）：`pacman -S pkg`
-- 卸载软件（包括配置文件和依赖）：`pacman -Rsc pkg`
-- 搜索软件：`pacman -Ss keywords`
-- 升级所有软件：`pacman -Syu`
-
-## 更新 mirror 源
-
-使用 reflector 更新 mirror 地址：
-
-```shell
-sudo pacman -S reflector
-sudo reflector --country China --protocol https --age 12 --sort rate --save /etc/pacman.d/mirrorlist
-```
-
-> Manjaro 使用 `sudo pacman-mirrors -i -c China -m rank` 更新镜像。
+# Debian / Ubuntu 装机脚本
 
 ## 基础依赖
 
 ```shell
-sudo pacman -Syu zsh vim git tig tmux fzf ncdu htop proxychains-ng
+sudo apt update
+sudo apt install -y zsh vim git tig tmux fzf ncdu htop proxychains-ng
 
 # 搜索工具：rg 首选，ag/ack 备选
-sudo pacman -S ripgrep the_silver_searcher ack
+sudo apt install -y ripgrep silversearcher-ag ack
 ```
 
 ## oh-my-zsh
@@ -98,17 +80,17 @@ echo 'eval "$(jenv init -)"' >> ~/.zshrc
 ## zed（主力编辑器）
 
 ```shell
-# 通过官方脚本（推荐）
 curl -f https://zed.dev/install.sh | sh
-
-# 或通过 pacman
-sudo pacman -S zed
 ```
 
 ## ghostty（终端）
 
 ```shell
-sudo pacman -S ghostty
+# 通过官方二进制包安装，参见 https://ghostty.org/docs/install/binary
+# 以 Ubuntu 24.04 为例：
+source /etc/os-release
+curl -fsSL "https://github.com/ghostty-org/ghostty/releases/latest/download/ghostty_${VERSION_ID}_amd64.deb" -o /tmp/ghostty.deb
+sudo dpkg -i /tmp/ghostty.deb
 ```
 
 换主题：
@@ -120,11 +102,14 @@ ghostty +list-themes
 ## vscodium
 
 ```shell
-# 通过 AUR 助手（如 yay 或 paru）
-yay -S vscodium-bin
+# 通过 snap
+snap install codium --classic
 
-# 或直接安装社区包
-sudo pacman -S vscodium-bin
+# 或通过 GPG 源安装：
+wget -qO - https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo/raw/master/pub.gpg | gpg --dearmor | sudo dd of=/usr/share/keyrings/vscodium-archive-keyring.gpg
+echo 'deb [ signed-by=/usr/share/keyrings/vscodium-archive-keyring.gpg ] https://download.vscodium.com/debs vscodium main' | sudo tee /etc/apt/sources.list.d/vscodium.list
+sudo apt update
+sudo apt install -y codium
 ```
 
 ## 字体
@@ -132,29 +117,40 @@ sudo pacman -S vscodium-bin
 ### Sarasa Mono（主力编程字体）
 
 ```shell
-sudo pacman -S ttf-sarasa-gothic
+# 从 GitHub releases 下载
+wget https://github.com/be5invis/Sarasa-Gothic/releases/latest/download/Sarasa-TTF.tar.gz
+sudo mkdir -p /usr/share/fonts/truetype/sarasa
+sudo tar -xzf Sarasa-TTF.tar.gz -C /usr/share/fonts/truetype/sarasa
+sudo fc-cache -fv
 ```
 
 ### Jetbrains Mono
 
 ```shell
-sudo pacman -S ttf-jetbrains-mono
+# 从 Jetbrains 官网下载
+# https://www.jetbrains.com/lp/mono/
+
+# 或者通过 nerd font patched 版本
+wget https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz
+sudo mkdir -p /usr/share/fonts/truetype/jetbrains-mono
+sudo tar -xf JetBrainsMono.tar.xz -C /usr/share/fonts/truetype/jetbrains-mono
+sudo fc-cache -fv
 ```
 
 ### Cascadia Mono（搭配 Windows Terminal）
 
 ```shell
-# 通过 AUR
-yay -S ttf-cascadia-code
-
-# 或直接下载 Nerd Font 变体
-# https://www.nerdfonts.com/font-downloads
+# 下载 Nerd Font 变体
+wget https://github.com/ryanoasis/nerd-fonts/releases/latest/download/CascadiaCode.tar.xz
+sudo mkdir -p /usr/share/fonts/truetype/cascadia-code
+sudo tar -xf CascadiaCode.tar.xz -C /usr/share/fonts/truetype/cascadia-code
+sudo fc-cache -fv
 ```
 
 ### Noto Sans CJK
 
 ```shell
-sudo pacman -S noto-fonts-cjk
+sudo apt install -y fonts-noto-cjk
 ```
 
 ## pi coding agent
@@ -218,43 +214,4 @@ rm -rf ~/.config/nvim/.git
 
 ```shell
 nvim
-```
-
-## 输入法（fcitx5）
-
-> 以下仅限 Manjaro / KDE 环境，其他桌面参见 fcitx5 文档。
-
-安装依赖：
-
-```shell
-sudo pacman -S fcitx5 fcitx5-qt fcitx5-gtk fcitx5-configtool fcitx5-rime
-```
-
-下载五笔（可选）：
-
-下载 https://github.com/rime/rime-wubi ，将所有 `.yaml` 文件移动到 `/usr/share/rime-data`。
-
-并在 `default.yaml` 里添加：
-
-```yaml
-schema_list:
-  - schema: wubi86
-```
-
-添加启动配置，在 `~/.xprofile` 里添加：
-
-```
-export GTK_IM_MODULE=fcitx
-export QT_IM_MODULE=fcitx
-export XMODIFIERS="@im=fcitx"
-```
-
-开机时启动 fcitx5（仅限 KDE）：
-
-System Settings -> Workspace -> Startup and Shutdown -> Autostart -> Add -> Add Application，搜索 `Fcitx5` 并添加。
-
-## 命令行下连接蓝牙鼠标
-
-```shell
-bluetoothctl
 ```
