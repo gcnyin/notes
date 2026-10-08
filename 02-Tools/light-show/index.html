@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>光之变换 · Luminous Flux</title>
+<link rel="icon" href="data:," />
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #02030a;
+  }
+  #stage {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  #fail {
+    position: fixed;
+    inset: 0;
+    display: none;
+    place-items: center;
+    color: #9fb4ff;
+    font: 15px/1.8 "SF Pro SC", "PingFang SC", system-ui, sans-serif;
+    letter-spacing: .08em;
+    text-align: center;
+  }
+  #fsBtn {
+    position: fixed;
+    right: 22px;
+    bottom: 20px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border: 1px solid rgba(150, 175, 255, 0.35);
+    border-radius: 999px;
+    background: rgba(14, 18, 42, 0.45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: #b9c7ff;
+    font: 13px/1 "SF Pro SC", "PingFang SC", system-ui, sans-serif;
+    letter-spacing: 0.12em;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.45s ease, transform 0.45s ease, background 0.25s ease;
+    pointer-events: none;
+    user-select: none;
+  }
+  #fsBtn.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  #fsBtn:hover {
+    background: rgba(40, 50, 100, 0.55);
+    color: #e6ecff;
+  }
+  #fsBtn svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  body.ui-hidden {
+    cursor: none;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="stage"></canvas>
+<div id="fail">WebGL 初始化失败，请更换支持 WebGL2 的浏览器。</div>
+
+<button id="fsBtn" type="button" aria-label="切换全屏">
+  <svg id="fsIcon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+  </svg>
+  <span id="fsLabel">全屏</span>
+</button>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js",
+    "three/addons/": "./vendor/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+/* ------------------------------------------------------------------ *
+ *  共用 GLSL：哈希 / 值噪声 / fbm / 简单x噪声
+ * ------------------------------------------------------------------ */
+const NOISE_GLSL = /* glsl */`
+  vec3 hash33(vec3 p){
+    p = vec3(dot(p, vec3(127.1, 311.7,  74.7)),
+             dot(p, vec3(269.5, 183.3, 246.1)),
+             dot(p, vec3(113.5, 271.9, 124.6)));
+    return fract(sin(p) * 43758.5453123);
+  }
+
+  float hash13(vec3 p){
+    p = fract(p * 0.1031);
+    p += dot(p, p.zyx + 31.32);
+    return fract((p.x + p.y) * p.z);
+  }
+
+  float vnoise(vec3 p){
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    vec3 u = f * f * (3.0 - 2.0 * f);
+
+    float n000 = hash13(i + vec3(0.0, 0.0, 0.0));
+    float n100 = hash13(i + vec3(1.0, 0.0, 0.0));
+    float n010 = hash13(i + vec3(0.0, 1.0, 0.0));
+    float n110 = hash13(i + vec3(1.0, 1.0, 0.0));
+    float n001 = hash13(i + vec3(0.0, 0.0, 1.0));
+    float n101 = hash13(i + vec3(1.0, 0.0, 1.0));
+    float n011 = hash13(i + vec3(0.0, 1.0, 1.0));
+    float n111 = hash13(i + vec3(1.0, 1.0, 1.0));
+
+    return mix(mix(mix(n000, n100, u.x), mix(n010, n110, u.x), u.y),
+               mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y), u.z);
+  }
+
+  float fbm(vec3 p){
+    float v = 0.0;
+    float a = 0.5;
+    for (int i = 0; i < 5; i++){
+      v += a * vnoise(p);
+      p = p * 2.02 + vec3(17.3, 9.1, 4.7);
+      a *= 0.5;
+    }
+    return v;
+  }
+
+  // Ashima / Stefan Gustavson 3D 单纯形噪声（平滑，适合做光带形变）
+  vec3 mod289(vec3 x){ return x - floor(x * (1.0 / 289.0)) * 289.0; }
+  vec4 mod289(vec4 x){ return x - floor(x * (1.0 / 289.0)) * 289.0; }
+  vec4 permute(vec4 x){ return mod289(((x * 34.0) + 1.0) * x); }
+  vec4 taylorInvSqrt(vec4 r){ return 1.79284291400159 - 0.85373472095314 * r; }
+
+  float snoise(vec3 v){
+    const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+    const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+    vec3 i  = floor(v + dot(v, C.yyy));
+    vec3 x0 = v - i + dot(i, C.xxx);
+
+    vec3 g = step(x0.yzx, x0.xyz);
+    vec3 l = 1.0 - g;
+    vec3 i1 = min(g.xyz, l.zxy);
+    vec3 i2 = max(g.xyz, l.zxy);
+
+    vec3 x1 = x0 - i1 + C.xxx;
+    vec3 x2 = x0 - i2 + C.yyy;
+    vec3 x3 = x0 - D.yyy;
+
+    i = mod289(i);
+    vec4 p = permute(permute(permute(
+               i.z + vec4(0.0, i1.z, i2.z, 1.0))
+             + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+             + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+    float n_ = 0.142857142857;
+    vec3 ns = n_ * D.wyz - D.xzx;
+
+    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+
+    vec4 x_ = floor(j * ns.z);
+    vec4 y_ = floor(j - 7.0 * x_);
+
+    vec4 x = x_ * ns.x + ns.yyyy;
+    vec4 y = y_ * ns.x + ns.yyyy;
+    vec4 h = 1.0 - abs(x) - abs(y);
+
+    vec4 b0 = vec4(x.xy, y.xy);
+    vec4 b1 = vec4(x.zw, y.zw);
+
+    vec4 s0 = floor(b0) * 2.0 + 1.0;
+    vec4 s1 = floor(b1) * 2.0 + 1.0;
+    vec4 sh = -step(h, vec4(0.0));
+
+    vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+    vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+
+    vec3 p0 = vec3(a0.xy, h.x);
+    vec3 p1 = vec3(a0.zw, h.y);
+    vec3 p2 = vec3(a1.xy, h.z);
+    vec3 p3 = vec3(a1.zw, h.w);
+
+    vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+    p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+
+    vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+    m = m * m;
+    return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
+  }
+`;
+
+/* ------------------------------------------------------------------ *
+ *  渲染器
+ * ------------------------------------------------------------------ */
+const canvas = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  alpha: false,
+  powerPreference: 'high-performance'
+});
+if (!renderer.getContext()) {
+  document.getElementById('fail').style.display = 'grid';
+  throw new Error('WebGL unavailable');
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.1, 220);
+// 固定远观机位：像壁纸一样静静凝视中心
+camera.position.set(0, 1.15, 12.8);
+camera.lookAt(0, 0, 0);
+
+/* ------------------------------------------------------------------ *
+ *  1. 极光天幕（内翻球体）
+ * ------------------------------------------------------------------ */
+const skyUniforms = {
+  uTime:     { value: 0 },
+  uTopCol:   { value: new THREE.Vector3(0.02, 0.03, 0.09) },
+  uHorizonA: { value: new THREE.Vector3(0.10, 0.05, 0.28) },
+  uHorizonB: { value: new THREE.Vector3(0.02, 0.16, 0.30) }
+};
+
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(80, 96, 64),
+  new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    uniforms: skyUniforms,
+    vertexShader: /* glsl */`
+      varying vec3 vWorldPos;
+      void main(){
+        vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      varying vec3 vWorldPos;
+      uniform float uTime;
+      uniform vec3 uTopCol, uHorizonA, uHorizonB;
+      ${NOISE_GLSL}
+
+      // 极光光幕：围绕天穹的流动光带
+      float curtain(vec3 rd, float t, float scale, float seed, float height){
+        vec2 ang = vec2(atan(rd.z, rd.x), rd.y);
+        float flow = fbm(vec3(ang.x * scale + seed, ang.y * scale * 0.55 - t * 0.06, t * 0.045 + seed));
+        float band = height + 0.34 * sin(ang.x * 1.7 + flow * 3.4 + t * 0.12)
+                            + 0.16 * sin(ang.x * 3.9 - t * 0.21 + seed);
+        float d = 1.0 - clamp(abs(rd.y - band) * (2.6 + scale), 0.0, 1.0);
+        float body = pow(max(d, 0.0), 2.4);
+        // 光幕底部的竖直“帘丝”
+        float streak = 0.62 + 0.38 * fbm(vec3(ang.x * 9.0 + seed, t * 0.11, ang.y * 2.0));
+        return body * streak * (0.45 + 0.9 * flow);
+      }
+
+      float starLayer(vec3 rd, float depth, float thresh){
+        vec3 p = rd * depth;
+        vec3 id = floor(p);
+        vec3 f = fract(p) - 0.5;
+        float h = hash13(id);
+        if (h < thresh) return 0.0;
+        float spark = smoothstep(0.16, 0.0, length(f - (hash33(id) - 0.5) * 0.6));
+        float tw = 0.55 + 0.45 * sin(uTime * 1.7 + h * 63.0);
+        return spark * tw;
+      }
+
+      void main(){
+        vec3 rd = normalize(vWorldPos - cameraPosition);
+        float t = uTime;
+
+        // 深空底色：天顶 -> 地平线渐变
+        float h = rd.y * 0.5 + 0.5;
+        vec3 col = mix(mix(uHorizonB, uHorizonA, smoothstep(0.25, 0.62, h)),
+                       uTopCol, smoothstep(0.35, 1.0, h));
+
+        // 星云（低频彩色雾）
+        float neb = fbm(rd * 2.1 + vec3(t * 0.012, -t * 0.008, 3.7));
+        float neb2 = fbm(rd * 4.3 + vec3(-t * 0.017, 2.1, t * 0.011));
+        col += vec3(0.16, 0.07, 0.34) * pow(max(neb - 0.42, 0.0), 1.5) * 1.05;
+        col += vec3(0.05, 0.22, 0.30) * pow(max(neb2 - 0.48, 0.0), 1.7) * 0.85;
+
+        // 星空
+        float stars = starLayer(rd, 190.0, 0.9955) * 0.85
+                    + starLayer(rd, 340.0, 0.9975) * 0.55
+                    + starLayer(rd, 620.0, 0.9988) * 0.35;
+        vec3 starTint = mix(vec3(0.62, 0.74, 1.0), vec3(1.0, 0.83, 0.62), hash13(floor(rd * 190.0)));
+        col += stars * starTint * (0.35 + 0.65 * smoothstep(-0.15, 0.7, rd.y));
+
+        // 极光（绿 -> 青 -> 紫）
+        float a1 = curtain(rd, t * 1.00, 1.15, 0.0, 0.30);
+        float a2 = curtain(rd, t * 0.72, 2.35, 11.7, 0.47);
+        float a3 = curtain(rd, t * 1.34, 3.70, 27.3, 0.16);
+        vec3 aur = vec3(0.10, 1.00, 0.52) * a1 * 0.85
+                 + vec3(0.16, 0.62, 1.00) * a2 * 0.72
+                 + vec3(0.72, 0.26, 1.00) * a3 * 0.60;
+        // 极光上下晕染
+        aur += vec3(0.06, 0.30, 0.36) * curtain(rd, t * 0.5, 0.8, 44.4, 0.36) * 0.22;
+        col += aur;
+
+        // 地平辉光
+        float glow = pow(max(1.0 - abs(rd.y + 0.06), 0.0), 7.0);
+        col += vec3(0.16, 0.12, 0.34) * glow * 0.55;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  })
+);
+sky.frustumCulled = false;
+scene.add(sky);
+
+/* ------------------------------------------------------------------ *
+ *  2. 流动光带（噪声形变的扭结环）
+ * ------------------------------------------------------------------ */
+const ribbonVertex = /* glsl */`
+  uniform float uTime;
+  uniform float uWarp;
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+  varying float vNoise;
+  ${NOISE_GLSL}
+
+  void main(){
+    vec3 p = position;
+    float slow = uTime * 0.16;
+    float n1 = snoise(p * 0.42 + vec3(0.0, 0.0, slow));
+    float n2 = snoise(p * 0.95 - vec3(slow * 0.7, 0.0, 0.0));
+    float n3 = snoise(p * 2.10 + vec3(slow * 1.6));
+    float disp = n1 * 0.62 + n2 * 0.30 + n3 * 0.12;
+
+    p += normal * disp * uWarp;
+
+    vNoise = disp;
+    vNormal = normalize(normalMatrix * normal);
+    vec4 wp = modelMatrix * vec4(p, 1.0);
+    vWorldPos = wp.xyz;
+    gl_Position = projectionMatrix * viewMatrix * wp;
+  }
+`;
+
+const ribbonFragment = /* glsl */`
+  precision highp float;
+  uniform float uTime;
+  uniform float uHue;
+  uniform float uIntensity;
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+  varying float vNoise;
+
+  void main(){
+    vec3 V = normalize(cameraPosition - vWorldPos);
+    vec3 N = normalize(vNormal);
+    float fres = pow(1.0 - clamp(abs(dot(V, N)), 0.0, 1.0), 1.8);
+
+    // 彩虹相位：随噪声 + 时间流转
+    float phase = vNoise * 0.85 + fres * 0.75 + uHue + uTime * 0.045;
+    vec3 iri = pow(0.5 + 0.5 * cos(6.28318 * (phase + vec3(0.00, 0.33, 0.67))), vec3(1.45));
+
+    // 高光脊线（细亮丝）
+    float ridge = pow(clamp(vNoise * 0.5 + 0.5, 0.0, 1.0), 3.0);
+
+    vec3 col = iri * (0.13 + fres * 0.80) + iri * ridge * 0.26;
+    col *= uIntensity;
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`;
+
+const ribbons = [];
+const ribbonSpecs = [
+  { radius: 3.15, tube: 0.135, knot: [2, 3], warp: 0.42, rot: [0.35, 0.0, 0.12],  speed: [0.043, 0.071], hue: 0.02, intensity: 0.72 },
+  { radius: 2.35, tube: 0.115, knot: [3, 4], warp: 0.38, rot: [1.15, 0.6, -0.4],  speed: [-0.058, 0.036], hue: 0.36, intensity: 0.64 },
+  { radius: 3.95, tube: 0.105, knot: [2, 5], warp: 0.48, rot: [-0.7, 0.25, 0.9],  speed: [0.031, -0.049], hue: 0.62, intensity: 0.55 },
+  { radius: 1.65, tube: 0.095, knot: [3, 5], warp: 0.34, rot: [0.9, -0.85, 0.2],  speed: [-0.027, -0.062], hue: 0.82, intensity: 0.60 }
+];
+
+for (const s of ribbonSpecs) {
+  const geo = new THREE.TorusKnotGeometry(s.radius, s.tube, 420, 26, s.knot[0], s.knot[1]);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime:      { value: 0 },
+      uWarp:      { value: s.warp },
+      uHue:       { value: s.hue },
+      uIntensity: { value: s.intensity }
+    },
+    vertexShader: ribbonVertex,
+    fragmentShader: ribbonFragment,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.set(...s.rot);
+  mesh.userData.speed = s.speed;
+  scene.add(mesh);
+  ribbons.push(mesh);
+}
+
+/* ------------------------------------------------------------------ *
+ *  3. 能量光环（细环，缓慢公转）
+ * ------------------------------------------------------------------ */
+const ringFragment = /* glsl */`
+  precision highp float;
+  uniform float uTime;
+  uniform float uHue;
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+  varying vec2 vUv;
+  ${NOISE_GLSL}
+
+  void main(){
+    vec3 V = normalize(cameraPosition - vWorldPos);
+    vec3 N = normalize(vNormal);
+    float fres = pow(1.0 - clamp(abs(dot(V, N)), 0.0, 1.0), 1.35);
+
+    float sweep = 0.5 + 0.5 * sin(vUv.x * 22.0 - uTime * 1.35 + uHue * 12.0);
+    sweep = pow(sweep, 2.2);
+
+    vec3 iri = pow(0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + uHue + vUv.x * 0.8 + uTime * 0.05)), vec3(1.4));
+    vec3 col = iri * (fres * 0.80 + sweep * 0.70 + 0.06);
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`;
+
+const rings = [];
+const ringSpecs = [
+  { r: 5.0, t: 0.022, seg: 320, rot: [1.28, 0.18, 0.0],  speed: [0.0, 0.052, 0.012], hue: 0.08 },
+  { r: 5.9, t: 0.018, seg: 320, rot: [-0.62, 0.9, 0.3],  speed: [0.031, -0.038, 0.0], hue: 0.42 },
+  { r: 4.3, t: 0.020, seg: 288, rot: [0.42, -1.05, 0.7], speed: [-0.044, 0.026, 0.019], hue: 0.68 },
+  { r: 6.8, t: 0.015, seg: 384, rot: [1.9, 0.4, -0.5],   speed: [0.018, 0.045, -0.021], hue: 0.9 }
+];
+
+for (const s of ringSpecs) {
+  const geo = new THREE.TorusGeometry(s.r, s.t, 16, s.seg);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uHue:  { value: s.hue }
+    },
+    vertexShader: /* glsl */`
+      varying vec3 vNormal;
+      varying vec3 vWorldPos;
+      varying vec2 vUv;
+      void main(){
+        vUv = uv;
+        vNormal = normalize(normalMatrix * normal);
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: ringFragment,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.set(...s.rot);
+  mesh.userData.speed = s.speed;
+  scene.add(mesh);
+  rings.push(mesh);
+}
+
+/* ------------------------------------------------------------------ *
+ *  4. 星尘粒子
+ * ------------------------------------------------------------------ */
+const PARTICLE_COUNT = 5200;
+{
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const sizes = new Float32Array(PARTICLE_COUNT);
+  const phases = new Float32Array(PARTICLE_COUNT);
+
+  const palette = [
+    new THREE.Vector3(0.35, 0.72, 1.00),
+    new THREE.Vector3(0.55, 1.00, 0.78),
+    new THREE.Vector3(0.85, 0.55, 1.00),
+    new THREE.Vector3(1.00, 0.78, 0.52),
+    new THREE.Vector3(0.62, 0.86, 1.00)
+  ];
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    // 球壳 + 中心密集两层分布
+    const r = 3.6 + Math.pow(Math.random(), 0.85) * 11.5;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+
+    positions[i * 3 + 0] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = r * Math.cos(phi) * 0.62;
+    positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+
+    const c = palette[(Math.random() * palette.length) | 0];
+    const v = 0.55 + Math.random() * 0.45;
+    colors[i * 3 + 0] = c.x * v;
+    colors[i * 3 + 1] = c.y * v;
+    colors[i * 3 + 2] = c.z * v;
+
+    sizes[i] = 0.6 + Math.pow(Math.random(), 2.6) * 3.4;
+    phases[i] = Math.random();
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uPixelRatio: { value: renderer.getPixelRatio() } },
+    vertexShader: /* glsl */`
+      uniform float uTime;
+      uniform float uPixelRatio;
+      attribute vec3 aColor;
+      attribute float aSize;
+      attribute float aPhase;
+      varying vec3 vColor;
+      varying float vGlow;
+
+      void main(){
+        vec3 p = position;
+        float w = uTime * 0.11 + aPhase * 6.28318;
+        p.x += sin(w) * 0.22;
+        p.y += cos(w * 1.31) * 0.18;
+        p.z += sin(w * 0.77) * 0.22;
+
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+
+        float tw = 0.42 + 0.58 * (0.5 + 0.5 * sin(uTime * 1.45 + aPhase * 31.4));
+        vGlow = tw;
+        vColor = aColor;
+
+        gl_PointSize = aSize * uPixelRatio * (120.0 / max(-mv.z, 0.6)) * (0.65 + 0.55 * tw);
+      }
+    `,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      varying vec3 vColor;
+      varying float vGlow;
+      void main(){
+        vec2 d = gl_PointCoord - 0.5;
+        float r = length(d) * 2.0;
+        float core = smoothstep(1.0, 0.0, r);
+        float halo = exp(-r * 3.2) * 0.85;
+        float a = (core * 0.9 + halo) * vGlow;
+        gl_FragColor = vec4(vColor * a * 0.75, a);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.userData.mat = mat;
+  scene.add(points);
+  window.__particles = points;
+}
+
+/* ------------------------------------------------------------------ *
+ *  5. 中心光核（柔和辉光球）
+ * ------------------------------------------------------------------ */
+const core = new THREE.Mesh(
+  new THREE.SphereGeometry(0.78, 48, 48),
+  new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: /* glsl */`
+      varying vec3 vNormal;
+      varying vec3 vWorldPos;
+      void main(){
+        vNormal = normalize(normalMatrix * normal);
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      uniform float uTime;
+      varying vec3 vNormal;
+      varying vec3 vWorldPos;
+      void main(){
+        vec3 V = normalize(cameraPosition - vWorldPos);
+        float f = pow(1.0 - clamp(dot(V, normalize(vNormal)), 0.0, 1.0), 2.2);
+        float pulse = 0.72 + 0.28 * sin(uTime * 0.85);
+        vec3 col = mix(vec3(0.22, 0.42, 1.0), vec3(0.86, 0.48, 1.0), f) * (0.05 + f * 0.42) * pulse;
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  })
+);
+scene.add(core);
+
+/* ------------------------------------------------------------------ *
+ *  后期：辉光 + 色散/暗角/颗粒
+ * ------------------------------------------------------------------ */
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+const bloom = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.46,   // strength
+  0.58,   // radius
+  0.62    // threshold
+);
+composer.addPass(bloom);
+
+const finalPass = new ShaderPass({
+  uniforms: {
+    tDiffuse: { value: null },
+    uTime:    { value: 0 },
+    uAspect:  { value: window.innerWidth / window.innerHeight }
+  },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main(){
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */`
+    precision highp float;
+    varying vec2 vUv;
+    uniform sampler2D tDiffuse;
+    uniform float uTime;
+    uniform float uAspect;
+
+    float hash21(vec2 p){
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+
+    void main(){
+      vec2 uv = vUv;
+      vec2 c = uv - 0.5;
+      c.x *= uAspect;
+      float r2 = dot(c, c);
+
+      // 径向色散（边缘更明显）
+      float ca = 0.0010 + r2 * 0.0068;
+      vec3 col;
+      col.r = texture2D(tDiffuse, uv + c * ca).r;
+      col.g = texture2D(tDiffuse, uv).g;
+      col.b = texture2D(tDiffuse, uv - c * ca).b;
+
+      // 柔和胶片曲线
+      col = vec3(1.0) - exp(-max(col, 0.0) * 1.15);
+      col = pow(col, vec3(0.90));
+
+      // 暗角
+      float vig = 1.0 - smoothstep(0.30, 1.22, length(c) * 1.24);
+      col *= mix(0.34, 1.0, vig);
+
+      // 极细颗粒
+      float g = hash21(uv * vec2(1920.0, 1080.0) + fract(uTime) * 43.7);
+      col += (g - 0.5) * 0.022;
+
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+});
+finalPass.renderToScreen = true;
+composer.addPass(finalPass);
+
+/* ------------------------------------------------------------------ *
+ *  交互：仅随窗口尺寸自适应，机位保持固定
+ * ------------------------------------------------------------------ */
+function onResize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(w, h);
+  composer.setSize(w, h);
+  bloom.setSize(w, h);
+  finalPass.uniforms.uAspect.value = w / h;
+
+  const p = window.__particles;
+  if (p) p.userData.mat.uniforms.uPixelRatio.value = renderer.getPixelRatio();
+}
+window.addEventListener('resize', onResize);
+
+/* ------------------------------------------------------------------ *
+ *  主循环
+ * ------------------------------------------------------------------ */
+const clock = new THREE.Clock();
+let elapsed = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min(clock.getDelta(), 0.05);
+  elapsed += dt;
+
+  skyUniforms.uTime.value = elapsed;
+
+  for (const m of ribbons) {
+    m.material.uniforms.uTime.value = elapsed;
+    m.rotation.x += m.userData.speed[0] * dt;
+    m.rotation.y += m.userData.speed[1] * dt;
+    m.rotation.z += (m.userData.speed[0] + m.userData.speed[1]) * 0.35 * dt;
+  }
+
+  for (const m of rings) {
+    m.material.uniforms.uTime.value = elapsed;
+    m.rotation.x += m.userData.speed[0] * dt;
+    m.rotation.y += m.userData.speed[1] * dt;
+    m.rotation.z += m.userData.speed[2] * dt;
+  }
+
+  const p = window.__particles;
+  p.userData.mat.uniforms.uTime.value = elapsed;
+  p.rotation.y = elapsed * 0.018;
+
+  core.material.uniforms.uTime.value = elapsed;
+
+  finalPass.uniforms.uTime.value = elapsed;
+
+  composer.render();
+}
+
+onResize();
+animate();
+
+/* ------------------------------------------------------------------ *
+ *  全屏按钮：鼠标动了才浮现，闲置 3 秒自动隐藏
+ * ------------------------------------------------------------------ */
+const fsBtn = document.getElementById('fsBtn');
+const fsLabel = document.getElementById('fsLabel');
+const fsIconPath = document.querySelector('#fsIcon path');
+
+const FS_ICON_ENTER = 'M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3';
+const FS_ICON_EXIT  = 'M3 8h3a2 2 0 0 0 2-2V3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M21 16h-3a2 2 0 0 0-2 2v3';
+
+function isFullscreen() {
+  return Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+}
+
+function syncFullscreenUi() {
+  const on = isFullscreen();
+  fsLabel.textContent = on ? '退出全屏' : '全屏';
+  fsIconPath.setAttribute('d', on ? FS_ICON_EXIT : FS_ICON_ENTER);
+}
+
+function toggleFullscreen() {
+  if (isFullscreen()) {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } else {
+    const root = document.documentElement;
+    (root.requestFullscreen || root.webkitRequestFullscreen).call(root);
+  }
+}
+
+fsBtn.addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', syncFullscreenUi);
+document.addEventListener('webkitfullscreenchange', syncFullscreenUi);
+
+let uiIdleTimer = 0;
+let uiVisible = false;
+
+function showUi() {
+  if (!uiVisible) {
+    uiVisible = true;
+    fsBtn.classList.add('visible');
+    document.body.classList.remove('ui-hidden');
+  }
+  clearTimeout(uiIdleTimer);
+  uiIdleTimer = setTimeout(hideUi, 3000);
+}
+
+function hideUi() {
+  // 悬停在按钮上时不隐藏，避免误伤交互
+  if (fsBtn.matches(':hover')) {
+    showUi();
+    return;
+  }
+  uiVisible = false;
+  fsBtn.classList.remove('visible');
+  document.body.classList.add('ui-hidden');
+}
+
+window.addEventListener('mousemove', showUi, { passive: true });
+window.addEventListener('mousedown', showUi, { passive: true });
+window.addEventListener('touchstart', showUi, { passive: true });
+window.addEventListener('keydown', showUi, { passive: true });
+
+// 窗口失焦/切走时立即隐藏并停表；回来后等下一次输入再浮现
+window.addEventListener('blur', () => {
+  clearTimeout(uiIdleTimer);
+  uiIdleTimer = 0;
+  if (uiVisible && !fsBtn.matches(':hover')) hideUi();
+});
+
+// 初始为纯壁纸状态：不显示按钮，等第一次输入才浮现
+document.body.classList.add('ui-hidden');
+syncFullscreenUi();
+</script>
+</body>
+</html>
